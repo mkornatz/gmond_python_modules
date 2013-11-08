@@ -169,7 +169,7 @@ class UpdatePhpFpmThread(threading.Thread):
         self.php_fpm_bin = str(params['php_fpm_bin'])
         self.host = str(params['host'])
         self.ports = [ int(p) for p in params['ports'].split(',') ]
-        self.socket = str(params['socket'])
+        self.socket = str(params['socket']) if type(params['socket']) is str else None
         self.prefix = str(params['prefix'])
         self._metrics_lock = threading.Lock()
         self._settings_lock = threading.Lock()
@@ -211,7 +211,10 @@ class UpdatePhpFpmThread(threading.Thread):
             logging.debug('status response: ' + str(result))
         except:
             logging.warning(traceback.print_exc(file=sys.stdout))
-            raise Exception('Unable to get php_fpm status response from %s:%s or socket %s at path %s' % (host, port, socket, status_path))
+            if type(socket) is str:
+                raise Exception('Unable to get php_fpm status response from %s %s' % (socket, status_path))
+            else:
+                raise Exception('Unable to get php_fpm status response from %s:%s %s' % (host, port, status_path))
 
         if len(result) <= 0:
             raise Exception('php_fpm status response is empty')
