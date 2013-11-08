@@ -167,9 +167,9 @@ class UpdatePhpFpmThread(threading.Thread):
         self.settings = {}
         self.status_path = str(params['status_path'])
         self.php_fpm_bin = str(params['php_fpm_bin'])
-        self.host = str(params['host'])
-        self.ports = [ int(p) for p in params['ports'].split(',') ]
-        self.socket = str(params['socket']) if type(params['socket']) is str else None
+        self.host = str(params['host']) if params.get('host', None) != None else None
+        self.ports = [ int(p) for p in params['ports'].split(',') ] if params.get('ports', None) != None else ['']
+        self.socket = str(params['socket']) if params.get('socket', None) != None else None
         self.prefix = str(params['prefix'])
         self._metrics_lock = threading.Lock()
         self._settings_lock = threading.Lock()
@@ -233,7 +233,7 @@ class UpdatePhpFpmThread(threading.Thread):
         if type(self.socket) is str:
             try:
                 logging.debug('opening socket path: %s, socket: %s' % (self.status_path, self.socket))
-                responses[0] = UpdatePhpFpmThread._get_php_fpm_status_response(self.status_path, None, None, self.socket)
+                responses[''] = UpdatePhpFpmThread._get_php_fpm_status_response(self.status_path, None, None, self.socket)
             except:
                 logging.warning('error refreshing stats for socket ' + str(self.socket))
                 logging.warning(traceback.print_exc(file=sys.stdout))
@@ -274,6 +274,7 @@ class UpdatePhpFpmThread(threading.Thread):
                 except:
                     logging.warning('error refreshing metrics for port ' + str(port))
                     logging.warning(traceback.print_exc(file=sys.stdout))
+            
         finally:
             self._metrics_lock.release()
 
@@ -387,7 +388,12 @@ def _create_descriptors(params):
             'description': 'Total worker processes'})
 
     prefix = str(params['prefix'])
-    ports = params['ports'].split(',')
+    
+    if params.get('ports', None) != None:
+        ports = params['ports'].split(',')
+    else:
+        #A dummy port
+        ports = ['']
 
     descriptors = []
     for port in ports:

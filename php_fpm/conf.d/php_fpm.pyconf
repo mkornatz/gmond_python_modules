@@ -12,6 +12,10 @@ modules {
     param ports {
         value = '9000'
     }
+    
+    param socket {
+        value = '/tmp/php-fpm.sock'
+    }
 
     param status_path {
       value = '/status'
