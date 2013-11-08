@@ -169,6 +169,7 @@ class UpdatePhpFpmThread(threading.Thread):
         self.php_fpm_bin = str(params['php_fpm_bin'])
         self.host = str(params['host'])
         self.ports = [ int(p) for p in params['ports'].split(',') ]
+        self.socket = str(params['socket'])
         self.prefix = str(params['prefix'])
         self._metrics_lock = threading.Lock()
         self._settings_lock = threading.Lock()
@@ -189,10 +190,13 @@ class UpdatePhpFpmThread(threading.Thread):
         self.running = False
 
     @staticmethod
-    def _get_php_fpm_status_response(status_path, host, port):
+    def _get_php_fpm_status_response(status_path, host, port, socket):
         def noop(sc, h): pass
 
-        stat = FCGIApp(connect=(host, port), filterEnviron=False)
+        if type(socket) is str:
+            stat = FCGIApp(connect=socket, filterEnviron=False)
+        else:
+            stat = FCGIApp(connect=(host, port), filterEnviron=False)
 
         env = {
             'QUERY_STRING': 'json',
@@ -207,7 +211,7 @@ class UpdatePhpFpmThread(threading.Thread):
             logging.debug('status response: ' + str(result))
         except:
             logging.warning(traceback.print_exc(file=sys.stdout))
-            raise Exception('Unable to get php_fpm status response from %s:%s %s' % (host, port, status_path))
+            raise Exception('Unable to get php_fpm status response from %s:%s or socket %s at path %s' % (host, port, socket, status_path))
 
         if len(result) <= 0:
             raise Exception('php_fpm status response is empty')
@@ -222,14 +226,22 @@ class UpdatePhpFpmThread(threading.Thread):
         logging.debug('refresh metrics')
 
         responses = {}
-
-        for port in self.ports:
+        
+        if type(self.socket) is str:
             try:
-                logging.debug('opening URL: %s, host: %s, ports %s' % (self.status_path, self.host, port))
-                responses[port] = UpdatePhpFpmThread._get_php_fpm_status_response(self.status_path, self.host, port)
+                logging.debug('opening socket path: %s, socket: %s' % (self.status_path, self.socket))
+                responses[0] = UpdatePhpFpmThread._get_php_fpm_status_response(self.status_path, None, None, self.socket)
             except:
-                logging.warning('error refreshing stats for port ' + str(port))
+                logging.warning('error refreshing stats for socket ' + str(self.socket))
                 logging.warning(traceback.print_exc(file=sys.stdout))
+        else:
+            for port in self.ports:
+                try:
+                    logging.debug('opening URL: %s, host: %s, ports %s' % (self.status_path, self.host, port))
+                    responses[port] = UpdatePhpFpmThread._get_php_fpm_status_response(self.status_path, self.host, port, None)
+                except:
+                    logging.warning('error refreshing stats for port ' + str(port))
+                    logging.warning(traceback.print_exc(file=sys.stdout))
 
         try:
             self._metrics_lock.acquire()
@@ -446,6 +458,7 @@ if __name__ == '__main__':
         parser.add_option('-r', '--refresh-rate', dest='refresh_rate', default=15)
         parser.add_option('--prefix', dest='prefix', default='php_fpm_')
         parser.add_option('-d', '--debug', dest='debug', action='store_true', default=False)
+        parser.add_option('-s', '--socket', dest='socket', default=None, help='Path to socket')
 
         (options, args) = parser.parse_args()
 
@@ -455,6 +468,7 @@ if __name__ == '__main__':
             'refresh_rate': options.refresh_rate,
             'host': options.host,
             'ports': options.ports,
+            'socket': options.socket,
             'prefix': options.prefix
         })
 
